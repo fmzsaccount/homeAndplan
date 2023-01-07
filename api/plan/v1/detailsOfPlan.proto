@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package api.detailsOfPlan.v1;
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "gy_home/api/detailsOfPlan/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.detailsOfPlan.v1";
+
+service DetailsOfPlan {
+	rpc GetPlan (GetPlanRequest) returns (Reply){
+	    option (google.api.http) = {
+              post: "/greeyun/fmz-home/plan/getPlan"
+              body: "*"
+	    };
+	}
+	rpc ListPlan (ListPlanRequest) returns (Reply){
+    	    option (google.api.http) = {
+                  post: "/greeyun/fmz-home/plan/listPlan"
+                  body: "*"
+    	    };
+    	}
+}
+
+message Reply{
+    uint32 code = 1;
+    google.protobuf.Struct data = 2;
+    string message = 3;
+}
+
+message GetPlanRequest {
+    int32 cid = 1;
+    optional int32 listid = 2;
+    optional int32 id = 3;
+}
+message GetPlanReply {
+    int32 code = 1;
+    Data data = 2;
+    string message = 3;
+}
+
+message ListPlanRequest{
+    int32 cid = 1;
+}
+message Data{
+    message Parent{
+        string CName = 1;
+        repeated Plan plan = 2;
+    }
+    Plan plan = 1;
+    int32 cap = 2;
+    Parent parent = 3;
+    repeated Plan recommend = 4;
+}
+
+message Plan{
+    int32 id = 1;
+    int32 cid = 2;
+    int32 listid = 3;
+    string cname = 4;
+    string name = 5;
+    string url = 6;
+    string utime = 7;
+}

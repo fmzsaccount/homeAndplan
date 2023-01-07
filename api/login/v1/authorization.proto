@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package api.login.v1;
+
+option go_package = "greeyun/api/login/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.login.v1";
+
+service Login {
+    rpc RefreshAuthorization (RefreshAuthorizationRequest) returns (RefreshAuthorizationReply);
+}
+
+message RefreshAuthorizationRequest {
+    string authorization = 1;
+    int32 acl = 2; // 1: 门户  2:管理端
+}
+message RefreshAuthorizationReply {
+    uint32 code = 1;
+    string message = 2;
+    string mail = 3;
+    string name = 4;
+    string dept = 5;
+    string permissionId = 6;
+    int32 userId=7;
+}

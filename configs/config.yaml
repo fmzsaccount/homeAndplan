@@ -1,0 +1,35 @@
+server:
+  http:
+    addr: 0.0.0.0:8000
+    timeout: 1s
+  grpc:
+    addr: 0.0.0.0:9000
+    timeout: 1s
+  other:
+    addr: 10.3.2.70:9090
+    timeout: 1s
+data:
+  database:
+    driver: mysql
+    source: dev181012:recX#Fm18ZncQ6jf@tcp(10.3.1.207:6666)/greeyun_service?charset=utf8mb4&parseTime=True&loc=Local
+  redis:
+    addr: 10.3.1.223:7777
+    password: cloudSms123
+    dial_timeout: 1s
+    read_timeout: 0.4s
+    write_timeout: 0.6s
+zaplog:
+  kafka:
+    broker:
+      - 10.2.13.121:9092
+      - 10.2.13.122:9092
+      - 10.2.13.123:9092
+      - 10.2.13.124:9092
+      - 10.2.13.125:9092
+      - 10.2.13.126:9092
+    topic: GreeYunLog
+    writeTimeout: 1s
+    async: true
+  sys:
+    appid: 12
+    env: fat

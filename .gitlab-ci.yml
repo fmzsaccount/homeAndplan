@@ -1,0 +1,187 @@
+variables:
+  REPO_NAME: github.gree.com/greecloud/greeyun-home-web-service
+  APP_NAME: greeyun-home-web-service
+  APP_CMD_NAME: gy_home
+  LINUX_AMD64_BINARY: ".linux.amd64"
+  WINDOS_AMD64_BINARY: ".windos.amd64.exe"
+  PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${APP_NAME}"
+  QUAY_REGISTRY_IMAGE: "test-quay.dc1-zh-cn.greeyun.com/greecloud/${APP_NAME}"
+  GIT_REGISTRY_IMAGE: "registry-github.gree.com/greecloud/${APP_NAME}"
+
+
+stages:
+  - test
+  - build
+  - upload
+  - release
+  - deploy
+  - publish
+
+
+source-check:
+  stage: test
+  image: test-quay.dc1-zh-cn.greeyun.com/google/golang:latest-gree
+  before_script:
+    - export GO111MODULE=auto
+    - export GOPROXY=http://athens.gree.com,direct
+    - export GONOPROXY=github.gree.com
+    - export GOPRIVATE=github.gree.com
+    - export GOSUMDB=off
+    - echo -e "machine github.gree.com\nlogin $PRIVATE_REPO_USER\npassword $PRIVATE_REPO_TOKEN"
+      > ~/.netrc
+    - echo "10.2.44.169 s3-cn-south-1.qiniucs.com" >> /etc/hosts
+    - mkdir -p $GOPATH/src/$CI_SERVER_HOST/$CI_PROJECT_NAMESPACE
+    - cp -r $CI_PROJECT_DIR $GOPATH/src/$CI_SERVER_HOST/$CI_PROJECT_NAMESPACE
+    - cd $GOPATH/src/$REPO_NAME
+  #    - go mod vendor
+  script:
+    - go fmt $(go list ./... | grep -v /vendor/)
+    - go vet $(go list ./... | grep -v /vendor/)
+    - go test -race $(go list ./... | grep -v /vendor/)
+
+
+source-compile:
+  stage: build
+  image: test-quay.dc1-zh-cn.greeyun.com/google/golang:1.19
+  before_script:
+    - export GO111MODULE=auto
+    - export GOPROXY=https://athens.gree.com,direct
+    - export GONOPROXY=github.gree.com
+    - export CGO_ENABLED=0
+    - export GOPRIVATE=github.gree.com
+    - export GOSUMDB=off
+    - echo -e "machine github.gree.com\nlogin $PRIVATE_REPO_USER\npassword $PRIVATE_REPO_TOKEN"
+      > ~/.netrc
+    - mkdir -p $GOPATH/src/$CI_SERVER_HOST/$CI_PROJECT_NAMESPACE
+    - cp -r $CI_PROJECT_DIR $GOPATH/src/$CI_SERVER_HOST/$CI_PROJECT_NAMESPACE
+    - cd $GOPATH/src/$REPO_NAME
+    - go mod tidy -compat=1.19
+  script:
+    - go build -o $CI_PROJECT_DIR/$APP_NAME ./cmd/$APP_CMD_NAME
+  artifacts:
+    paths:
+      - "$APP_NAME"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_BRANCH == "release"
+        || $CI_COMMIT_BRANCH == "test" || $CI_COMMIT_BRANCH == "develop" 
+        || $CI_COMMIT_BRANCH == "master"||$CI_COMMIT_TAG =~ /^(((test)|(release))-)?v[0-9]+[.][0-9]+[.]([0-9]|([1-9][0-9]*))$/
+
+
+artifact-containerization-develop:
+  image: test-quay.dc1-zh-cn.greeyun.com/official/docker:latest
+  services:
+    - test-quay.dc1-zh-cn.greeyun.com/official/docker:dind
+  stage: deploy
+  before_script:
+    - cd $CI_PROJECT_DIR
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD registry-github.gree.com
+    - cp $CI_PROJECT_DIR/$APP_NAME $CI_PROJECT_DIR/app
+    - pwd
+    - ls -l
+  script:
+    - |
+      tag=":$CI_COMMIT_REF_SLUG"
+
+    - docker build -t "$GIT_REGISTRY_IMAGE${tag}" .
+    - docker push  "$GIT_REGISTRY_IMAGE${tag}"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"|| $CI_COMMIT_BRANCH == "master"
+      exists:
+        - Dockerfile
+
+
+
+
+artifact-containerization:
+  image: test-quay.dc1-zh-cn.greeyun.com/official/docker:latest
+  services:
+    - test-quay.dc1-zh-cn.greeyun.com/official/docker:dind
+  stage: deploy
+  before_script:
+    - cd $CI_PROJECT_DIR
+    - pwd
+    - ls -al ./configs
+
+    - echo "$QUAY_PASSWORD" > authorization
+    - docker logout $QUAY_REGISTRY
+    - cat authorization | docker login --username "$QUAY_USER" --password-stdin   $QUAY_REGISTRY
+    - cp $CI_PROJECT_DIR/$APP_NAME $CI_PROJECT_DIR/app
+
+  script:
+    - |
+      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
+        tag=":latest"
+        echo "Running on default branch '$CI_DEFAULT_BRANCH': tag = 'latest'"
+      else
+        tag=":$CI_COMMIT_REF_SLUG"
+        echo "Running on branch '$CI_COMMIT_BRANCH': tag = $tag"
+      fi
+    - docker build --pull -t "$QUAY_REGISTRY_IMAGE${tag}" .
+    - docker push "$QUAY_REGISTRY_IMAGE${tag}"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_BRANCH == "release" || $CI_COMMIT_BRANCH == "test"|| $CI_COMMIT_BRANCH == "master"
+      exists:
+        - Dockerfile
+
+artifact-achive-develop:
+  stage: upload
+  image: test-quay.dc1-zh-cn.greeyun.com/curlimages/curl:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+  script:
+    - |
+      tag="$CI_COMMIT_BRANCH"
+      echo "Running on commit tag '$CI_COMMIT_BRANCH': image tag = $tag"
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file "$CI_PROJECT_DIR/$APP_NAME"
+        "${PACKAGE_REGISTRY_URL}/${tag}/${APP_NAME}-${tag}${LINUX_AMD64_BINARY}"'
+
+
+artifact-achive:
+  stage: upload
+  image: test-quay.dc1-zh-cn.greeyun.com/curlimages/curl:latest
+  rules:
+    - if: "$CI_COMMIT_TAG =~ /^(((test)|(release))-)?v[0-9]+[.][0-9]+[.]([0-9]|([1-9][0-9]*))$/"
+  script:
+    - |
+      tag="$CI_COMMIT_TAG"
+      echo "Running on commit tag '$CI_COMMIT_TAG': image tag = $tag"
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file "$CI_PROJECT_DIR/${APP_NAME}"
+    "${PACKAGE_REGISTRY_URL}/${tag}/${APP_NAME}-${tag}${LINUX_AMD64_BINARY}"'
+
+
+
+artifact-release:
+  stage: release
+  image: test-quay.dc1-zh-cn.greeyun.com/gitlab-org/release-cli:latest
+  rules:
+    - if: "$CI_COMMIT_TAG =~ /^(((test)|(release))-)?v[0-9]+[.][0-9]+[.]([0-9]|([1-9][0-9]*))$/"
+  script:
+    - |
+      tag="$CI_COMMIT_TAG"
+      echo "Running on commit tag '$CI_COMMIT_TAG': image tag = $tag"
+    - |
+      release-cli create --name "Release $CI_COMMIT_TAG" --tag-name $CI_COMMIT_TAG \
+        --assets-link "{\"name\":\"${APP_NAME}-${tag}${LINUX_AMD64_BINARY}\",\"url\":\"${PACKAGE_REGISTRY_URL}/${tag}/${APP_NAME}-${tag}${LINUX_AMD64_BINARY}\"}"
+
+
+version-control:
+  image: test-quay.dc1-zh-cn.greeyun.com/official/docker:latest
+  services:
+    - test-quay.dc1-zh-cn.greeyun.com/official/docker:dind
+  stage: publish
+  before_script:
+    - cd $CI_PROJECT_DIR
+    - echo "$QUAY_PASSWORD" > authorization
+    - docker logout $QUAY_REGISTRY
+    - cat authorization | docker login --username "$QUAY_USER" --password-stdin   $QUAY_REGISTRY
+    - cp $CI_PROJECT_DIR/$APP_NAME $CI_PROJECT_DIR/app
+  script:
+    - |
+      tag=":$CI_COMMIT_TAG"
+      echo "Running on commit tag '$CI_COMMIT_TAG': image tag = $tag"
+    - docker build --pull -t "$QUAY_REGISTRY_IMAGE${tag}" .
+    - docker push "$QUAY_REGISTRY_IMAGE${tag}"
+  rules:
+    - if: "$CI_COMMIT_TAG =~ /^(((test)|(release))-)?v[0-9]+[.][0-9]+[.]([0-9]|([1-9][0-9]*))$/"
+      exists:
+        - Dockerfile

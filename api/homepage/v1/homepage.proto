@@ -1,0 +1,195 @@
+syntax = "proto3";
+
+package api.homepage.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+import "errors/errors.proto";
+
+option go_package = "gy_home/api/homepage/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.homepage.v1";
+
+
+service Homepage {
+	rpc GetHomepage (GetHomepageRequest) returns (Reply){
+	    option (google.api.http) = {
+              get: "/greeyun/fmz-home/homepage"
+	    };
+	}
+	rpc GetHomepagePro (GetHomepageProRequest) returns (Reply){
+	    option(google.api.http)={
+	        get: "/greeyun/fmz-home/homepage/productandservice"
+	    };
+	}
+	rpc GetSite(GetSiteReq)returns(Reply){
+	    option(google.api.http)={
+	        get: "greeyun/fmz-home/site"
+	    };
+	}
+
+	rpc ListSearch (ListSearchRequest) returns (Reply){
+	    option(google.api.http)={
+	        get: "/greeyun/fmz-home/homepage/listsearch/{type}"
+	    };
+	}
+	rpc SetSearch (SetSearchRequest) returns (Reply){
+    	    option(google.api.http)={
+    	        post: "/greeyun/fmz-home/homepage/setsearch"
+    	        body: "*"
+    	    };
+    	}
+    rpc DelSearch (DelSearchRequest) returns (Reply){
+    	    option(google.api.http)={
+    	        delete: "/greeyun/fmz-home/homepage/Delsearch/{isdelete}"
+    	    };
+    	}
+
+}
+
+enum ErrorReason {
+    // 设置缺省错误码
+    option (errors.default_code) = 500;
+    // 为某个枚举单独设置错误码
+    USER_NOT_FOUND = 0 [(errors.code) = 404];
+    CONTENT_MISSING = 1 [(errors.code) = 400];
+}
+
+message Reply{
+    uint32 code = 1;
+    google.protobuf.Struct data = 2;
+    string message = 3;
+}
+
+message GetHomepageRequest {}
+message GetHomepageReply {
+    uint32 code = 1;
+    Data data = 2;
+    string message = 3;
+}
+
+message GetHomepageProRequest {
+    //string keyword = 1;
+}
+message GetHomepageProReply {
+    uint32 code = 1;
+    DataPro data = 2;
+    string message = 3;
+}
+
+message GetSiteReq{}
+message GetSiteReply{
+    int32 code = 1;
+    repeated Category data = 2;
+    string message = 3;
+}
+
+message GetSearchProRequest{
+    int32 id = 1;
+    string keyword = 2;
+    int32 type = 3;
+}
+message GetSearchProReply{
+    uint32 code = 1;
+    Search data = 2;
+    string message = 3;
+}
+message ListSearchRequest{
+    int32 type = 1;
+}
+message ListSearchReply{
+    uint32 code = 1;
+    Datasearch data = 2;
+    string message = 3;
+}
+
+message SetSearchRequest{
+    int32 id = 1;
+    string keyword = 2;
+    int32 type = 3;
+}
+message SetSearchReply{
+    int32 code = 1;
+    string data = 2;
+    string message = 3;
+}
+
+message DelSearchRequest{
+    int32 isdelete = 1;
+}
+message DelSearchReply{
+    int32 code = 1;
+    string message = 2;
+}
+
+message Datasearch{
+    repeated Search recentSearch = 1;
+    repeated Search historySearch = 2;
+}
+message Search{
+    int32 id = 1;
+    int32 type = 2;
+    string keyword = 3;
+}
+
+message DataPro{
+    repeated ProCategory proc = 1;
+    repeated Search pro = 2;
+}
+
+message Data{
+    repeated Banner banner = 1;
+    repeated Product product = 2;
+    repeated PlanCategory planCate = 3;
+}
+
+message Banner{
+    int32 id = 1;
+    string title = 2;
+    string type = 3;
+    string url = 4;
+    string link_id = 5;
+    int32 sort = 6;
+}
+
+message ProCategory{
+    int32 id = 1;
+    int32 pid = 2;
+    string name = 3;
+    repeated Level2 children = 4;
+}
+
+message Level2{
+    int32 id = 1;
+    int32 pid = 2;
+    string name = 3;
+    repeated Product children = 4;
+}
+
+message Product{
+    int32 id = 1;
+    int32 cid = 2;
+    int32 history = 3;
+    string cname = 4;
+    string name = 5;
+    string content = 6;
+}
+
+message PlanCategory{
+    int32 id = 1;
+    int32 sort = 2;
+    string name = 3;
+    optional string bucket = 4;
+    string url = 5;
+    string content = 6;
+}
+
+message Category{
+    message Site{
+        int32 id = 1;
+        string name = 2;
+        string link = 3;
+    }
+    string category = 1;
+    repeated Site site = 2;
+}

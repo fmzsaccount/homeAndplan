@@ -1,4 +1,7 @@
-# Kratos Project Template
+# Kratos Project UseCase
+
+#description
+This is a project I created using kratos, which involves the use of ent and log rewriting and the use of custom middleware
 
 ## Install Kratos
 ```
